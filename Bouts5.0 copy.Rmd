@@ -1,0 +1,264 @@
+---
+title: "Movement bouts_22.8.25"
+author: "Xiwen Su"
+date: "8/25/2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(TTR)
+library(readr)
+library(ggpmisc)
+library(ggforce)
+```
+
+```{r}
+SM01_RA_accel <- read_csv("~/Documents/Lab/IMU/22.6.8/SM01_04/SM01-RA-accel.csv")
+r_accel <- SM01_RA_accel
+time<-r_accel$`Timestamp (microseconds)` / 1000000
+x<-r_accel$`Accel X (g)`
+y<-r_accel$`Accel Y (g)`
+z<-r_accel$`Accel Z (g)`
+
+r_accel <- r_accel %>% mutate(times = time - min(time)) %>% 
+  mutate(x2 = x * 9.80665) %>% mutate(y2 = y * 9.80665) %>% 
+  mutate(z2 = z * 9.80665) %>% 
+  mutate(mag = sqrt((x2 * x2) + (y2 * y2) + (z2 * z2)))
+
+r_strt <- r_accel %>% filter(times > 0 & times <2 )
+ggplot(r_strt, aes(x=times, y=mag)) + geom_line()
+```
+
+```{r}
+which.max(r_strt$mag)
+r_accel[-(1:60),]
+r_accel <- r_accel %>% mutate(times = times - min(times)) 
+
+r_accel<- r_accel %>% filter(times>250 & times <457) %>% mutate(mag_d = mag-median(mag))
+
+r_accel <- r_accel %>% mutate(times = times - min(times)) %>%
+  filter(mag_d>1.32 | mag_d< -1.02) 
+```
+
+#maxima
+```{r}
+attach(r_accel)
+max.time=times[ggpmisc:::find_peaks(mag_d)]
+max.mag=mag_d[ggpmisc:::find_peaks(mag_d)]
+df_max<-data.frame(max.mag)
+df_max<- df_max%>%filter(max.mag>=1) %>%
+  summarise(maxima=mean(max.mag)-1/2*sd(max.mag))
+maxima<-df_max$maxima
+maxima
+```
+#minima
+```{r}
+min.time<-times[ggpmisc:::find_peaks(-mag_d)]
+min.mag<-mag_d[ggpmisc:::find_peaks(-mag_d)]
+df_min<-data.frame(min.mag)
+df_min<- df_min%>%filter(min.mag<=-1)%>%
+  summarise(minima=mean(min.mag)+1/2*sd(min.mag))
+minima<-df_min$minima
+minima
+```
+#plot
+```{r}
+r_accel <- r_accel %>% filter(mag_d>maxima | mag_d<minima)
+dim(r_accel)
+
+r_accel$SMA31 <- TTR::SMA(r_accel$mag_d,n=31)
+r_sample <- r_accel %>% filter(times > 120 & times <140 )
+
+ggplot(r_accel, aes(x=times, y=mag_d)) + geom_line() +
+  geom_hline(yintercept=-1.02, linetype="dashed", color = "red")+
+  geom_hline(yintercept=1.32, linetype="dashed", color = "red")
+
+ggplot(data = r_accel, aes(x = times, y = mag_d)) + 
+  geom_line() + stat_peaks(col = "red") + 
+  stat_valleys(col = "green")
+
+ggplot(data = r_sample, aes(x = times, y = mag_d)) + 
+  geom_line() + stat_peaks(col = "red") + 
+  stat_valleys(col = "green")
+
+ggplot(r_accel, aes(x=times)) + geom_line(aes(y=mag_d)) +
+  geom_line(aes(y=SMA31),color="blue")+
+  theme_minimal()+
+  theme(legend.position = "top")+
+  geom_hline(yintercept=-1.02, linetype="dashed", color = "grey")+
+  geom_hline(yintercept=1.32, linetype="dashed", color = "grey")+
+  geom_hline(yintercept=maxima, linetype="dashed", color = "red")+
+  geom_hline(yintercept=minima, linetype="dashed", color = "red")+
+  labs(title="Moving averages")
+
+ggplot(r_sample, aes(x=times)) + geom_line(aes(y=mag_d)) +
+  geom_line(aes(y=SMA31),color="blue")+
+  theme_minimal()+
+  theme(legend.position = "top")+
+  geom_hline(yintercept=-1.02, linetype="dashed", color = "grey")+
+  geom_hline(yintercept=1.32, linetype="dashed", color = "grey")+
+  geom_hline(yintercept=maxima, linetype="dashed", color = "red")+
+  geom_hline(yintercept=minima, linetype="dashed", color = "red")+
+  labs(title="Moving averages")
+
+View(r_accel)
+```
+#gyroscope
+```{r}
+SM01_RA_gyro <- read_csv("SM01_04/SM01-RA-gyro.csv")
+r_gyro <- SM01_RA_gyro
+time<-r_gyro$`Timestamp (microseconds)` / 1000000
+x<-r_gyro$`Gyro X (°/s)`
+y<-r_gyro$`Gyro Y (°/s)`
+z<-r_gyro$`Gyro Z (°/s)`
+
+r_gyro <- r_gyro %>% mutate(times = time - min(time)) %>% 
+  mutate(x3 = x * 0.0174533) %>% mutate(y3 = y * 0.0174533) %>% 
+  mutate(z3 = z * 0.0174533) %>% 
+  mutate(w_mag = sqrt((x3 * x3) + (y3 * y3) + (z3 * z3)))
+
+r_strt <- r_gyro %>% filter(times > 0 & times <4 )
+ggplot(r_strt, aes(x=times, y=w_mag)) + geom_line()
+```
+
+```{r}
+which.max(r_strt$w_mag)
+r_gyro[-(1:60),]
+r_gyro <- r_gyro %>% mutate(times = times - min(times)) 
+
+r_gyro<- r_gyro %>% filter(times>250 & times <457) %>% mutate(w_mag_d = w_mag-median(w_mag))
+
+r_gyro <- r_gyro %>% mutate(times = times - min(times)) %>%
+  filter(w_mag_d>0.32) 
+```
+#maxima
+```{r}
+attach(r_gyro)
+max.w_mag=w_mag_d[ggpmisc:::find_peaks(w_mag_d)]
+df_w_max<-data.frame(max.w_mag)
+df_w_max<- df_w_max%>%filter(max.w_mag>=0.32) %>%
+  summarise(w_maxima=mean(max.w_mag)-1/2*sd(max.w_mag))
+w_maxima<-df_w_max$w_maxima
+w_maxima
+```
+#plot
+```{r}
+r_gyro <- r_gyro %>% filter(w_mag_d>w_maxima)
+r_gyro$w_SMA31 <- TTR::SMA(r_gyro$w_mag_d,n=31)
+w_r_sample <- r_gyro %>% filter(times > 120 & times <140 )
+
+ggplot(r_gyro, aes(x=times, y=w_mag_d)) + geom_line() +
+  geom_hline(yintercept=0.32, linetype="dashed", color = "red")
+
+ggplot(data = r_gyro, aes(x = times, y = w_mag_d)) + 
+  geom_line() + stat_peaks(col = "red") 
+
+ggplot(data = w_r_sample, aes(x = times, y = w_mag_d)) + 
+  geom_line() + stat_peaks(col = "red") +
+  geom_hline(yintercept=w_maxima, linetype="dashed", color = "red")
+
+ggplot(r_gyro, aes(x=times)) + geom_line(aes(y=w_mag_d)) +
+  geom_line(aes(y=w_SMA31),color="blue")+
+  theme_minimal()+
+  theme(legend.position = "top")+
+  geom_hline(yintercept=0.32, linetype="dashed", color = "grey")+
+  geom_hline(yintercept=w_maxima, linetype="dashed", color = "red")+
+  labs(title="Moving averages")
+
+ggplot(w_r_sample, aes(x=times)) + geom_line(aes(y=w_mag_d)) +
+  geom_line(aes(y=w_SMA31),color="blue")+
+  theme_minimal()+
+  theme(legend.position = "top")+
+  geom_hline(yintercept=0.32, linetype="dashed", color = "red")+
+  geom_hline(yintercept=w_maxima, linetype="dashed", color = "red")+
+  labs(title="Moving averages")
+```
+
+```{r}
+dim(r_accel)
+dim(r_gyro)
+```
+#Bouts_merge sample window:20s
+```{r}
+bouts<- merge(r_accel, r_gyro, by="times", all=F)
+hist(bouts$times,breaks = 20,xlab="Time",main = "Movement Bouts")  
+axis(side=1, at=seq(0,210, 10), labels=seq(0,210,10))
+```
+#plot_merged
+```{r}
+ggplot(bouts) + geom_point(aes(x=times, y=mag_d),color="black",pch=17)+
+  geom_point(aes(x=times, y=w_mag_d),color="red") +
+  geom_hline(yintercept=maxima, linetype="dashed", color = "grey")+
+  geom_hline(yintercept=minima, linetype="dashed", color = "grey")+
+  geom_hline(yintercept=w_maxima, linetype="dashed", color = "maroon")+
+  labs(title="Movement Bouts")
+```
+#plot_20s
+```{r}
+bouts120_140<- bouts[(424:519),]
+ggplot()+
+  geom_line(data = r_sample, aes(x=times,y=mag_d),color="green")+
+  geom_line(data=w_r_sample,aes(x=times, y=w_mag_d),color="purple")+
+  geom_hline(yintercept=maxima, linetype="dashed", color = "red")+
+  geom_hline(yintercept=minima, linetype="dashed", color = "red")+
+  geom_hline(yintercept=w_maxima, linetype="dashed", color = "yellow")+
+  geom_point(data=bouts120_140,aes(x=times, y=mag_d),color="black",pch=17)+
+  geom_point(data=bouts120_140,aes(x=times, y=w_mag_d),color="red")
+```
+
+```{r}
+dim(bouts)
+View(bouts)
+```
+#difference
+```{r}
+difference<-data.frame(diff(bouts$times))
+blank <- c("NA")
+difference<-rbind(blank,difference)
+bouts<-cbind(difference,bouts)
+colnames(bouts)[1]<-"difference_time"
+
+dim(bouts)
+View(bouts)
+```
+
+```{r}
+Time <-c()
+
+for (i in 1:length(bouts$difference_time)){
+  if(bouts$difference_time[i] >= 0.5){
+    Time<-append(Time, '>0.5')
+  }
+  else{
+    Time<-append(Time,'<0.5')
+  }
+  
+}
+Time
+```
+
+```{r}
+
+```
+```{r}
+
+```
+```{r}
+
+```
+```{r}
+
+```
+```{r}
+getwd()
+write.csv(x=bouts,file="Bouts_6.30.csv")
+rm(list = ls())
+```
+
